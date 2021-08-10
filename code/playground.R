@@ -27,10 +27,12 @@ parameters = list(W=matrix(0.0, e, s) ,
                   LV = mvtnorm::rmvnorm(n, c(0.0, 0.0)))
 
 ## Make loss func
-model = MakeADFun(list(x=X, y = Y), parameters, DLL = "LVM", random = "LV")
+model = MakeADFun(list(x=X, y = Y), parameters, DLL = "LVM", random = c("LV"))
 
 ## Fit model
 fit = nlminb(model$par, model$fn, model$gr)
+res = sdreport(model)
+
 W_TMB = matrix(fit$par, e, s)
 LF_TMB = matrix(fit$par[names(fit$par) %in% "LF"], l, s)
 

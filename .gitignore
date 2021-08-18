@@ -4,3 +4,6 @@
 .Ruserdata
 *.so
 *.o
+
+data/
+*.tiff

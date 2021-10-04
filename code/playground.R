@@ -5,15 +5,15 @@ library(gllvm)
 
 # Simulate data
 l = 2L # number of latent variables
-e = 2L # number of environmental variables
-s = 20L # number of species
+e = 3L # number of environmental variables
+s = 25L # number of species
 n = 200L # number of sites
 
-X = matrix(runif(e*n), n, e)
-W = matrix(rnorm(e*s), e, s)
-LF = matrix(rnorm(l*s), l, s)
-LV = mvtnorm::rmvnorm(n, rep(0, l))
-YR = X%*% W + LV%*%(LF)
+X = matrix(runif(e*n), n, e) # Env
+W = matrix(rnorm(e*s), e, s) # Env response -> estimated
+LF = matrix(rnorm(l*s), l, s) # Factor loadings -> estimated
+LV = mvtnorm::rmvnorm(n, rep(0, l)) # Latent variables -> estimated
+YR = X%*% W + LV %*% LF
 Y = apply(1/(1+exp(-YR)), 1:2, function(p) rbinom(1, 1, p))
 
 # Fit model via TMB
@@ -52,7 +52,7 @@ for(j in 1:l) {
 LF_TMB = t(LF_TMB)
 
 # Compare with gllvm
-gl = gllvm(Y, data.frame(X), family = binomial(), num.lv = l)
+gl = gllvm(Y, data.frame(X), family = binomial(), num.lv = l, method = "VA")
 W_GLLVM = t(coef(gl)$Xcoef)
 LF_GLLVM = t(coef(gl)$theta)
 
@@ -62,8 +62,10 @@ sqrt(mean((W-W_GLLVM)**2))
 
 # LF:
 plot_covariance = function(L) fields::image.plot( cov2cor(t(L) %*% L + diag(1.0, ncol(L))))
+return_cov = function(L) cov2cor(t(L) %*% L + diag(1.0, ncol(L)))
 par(mfrow = c(1,3))
 plot_covariance(LF)
 plot_covariance(LF_TMB)
 plot_covariance(LF_GLLVM)
 
+cor(as.vector(return_cov(LF_TMB)), as.vector(return_cov(LF_GLLVM)))

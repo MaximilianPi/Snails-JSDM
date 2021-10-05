@@ -15,6 +15,7 @@ library(tmap)               # For beautiful spatial plots
 library(elevatr)            # Download elevation data
 library(cleangeo)           # To make geometries valid
 library(rnaturalearth)      # To download shapefile of the earth
+library(tmaptools)          # To download satellite maps
 
 ################################################################################
 #### Greater Extent
@@ -139,6 +140,11 @@ rhone <- erase(rhone, geneva)
 hill <- mask(hill, map2)
 ele <- mask(ele, map2)
 
+# Get satellite image for extent of sites
+sat <- read_osm(ext_sites, type = "bing")
+sat <- as(sat, "Raster")
+sat <- projectRaster(sat, crs = CRS("+init=epsg:4326"), method = "ngb")
+
 # Visualite
 p2 <- tm_shape(hill) +
     tm_raster(
@@ -183,10 +189,34 @@ p2 <- tm_shape(hill) +
   tm_scale_bar(width = 0.2) +
   tm_layout(bg.color = "cornflowerblue")
 
+# Close up of the sampling sites
+p3 <- tm_shape(sat) +
+  tm_rgb() +
+  tm_shape(sit) +
+    tm_dots(col = "blue", border.col = "white", shape = 21, size = 0.5) +
+  tm_graticules(
+      n.y                 = 10
+    , n.x                 = 10
+    , labels.inside.frame = F
+    , lines               = T
+    , ticks               = T
+    , lwd                 = 0.1
+    , alpha               = 0.5
+  ) +
+  tm_compass(
+      position   = c("left", "bottom")
+    , color.dark = "white"
+    , text.color = "white"
+  ) +
+  tm_scale_bar(width = 0.2, text.color = "white") +
+  tm_layout(bg.color = "cornflowerblue")
+
 # Show the two plots
 p1
 p2
+p3
 
 # Store the maps to file
 tmap_save(p1, filename = "Rhone_01.png", scale = 1.3)
 tmap_save(p2, filename = "Rhone_02.png", scale = 1.3)
+tmap_save(p3, filename = "Rhone_03.png", scale = 1.3)

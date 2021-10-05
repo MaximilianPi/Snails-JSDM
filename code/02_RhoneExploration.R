@@ -18,7 +18,7 @@ url <- "https://raw.githubusercontent.com/pennekampster/Bayesian_thinking_UZH/ma
 fauna_key <- read_csv2(file.path(url, "gastero_fauna_key.csv"))
 envir_key <- read_csv2(file.path(url, "gastero_environment_key.csv"))
 
-# Make proper column names and species names
+# Make proper column names
 names(fauna_key) <- c("Family", "Genus", "Species", "Short")
 
 # Make proper species names
@@ -46,7 +46,7 @@ fauna <- as.data.frame(fauna)
 
 # Bind data together
 dat <- cbind(fauna, envir, sampl)
-names(dat)
+print(names(dat))
 
 # Correct year
 dat$year <- dat$year + 2000
@@ -65,6 +65,13 @@ dat <- cbind(dat, info)
 # Indicate if something is pre or post restoration
 dat$restoration <- ifelse(dat$year <= dat$RestorationYear, "pre", "post")
 dat$restoration[is.na(dat$restoration)] <- "not_restored"
+
+# Let's recode the seasons a bit nicer
+dat <- mutate(dat, season = case_when(
+    season == "P" ~ "Spring"
+  , season == "E" ~ "Summer"
+  , season == "A" ~ "Autumn"
+))
 
 # Make some columns factorial
 dat$channel     <- as.factor(dat$channel)
@@ -96,7 +103,8 @@ dim(fauna) # 26 Species
 dim(sampl) # 6 Variables describing the sampling site
 
 # What kind of data is there?
-summary(dat$number)  # Unique ID for each sampling occasion
+summary(dat$number)        # Unique ID for each sampling occasion
+length(unique(dat$number)) # Not all samples remained in the dataset
 count(dat, channel)  # Different channels (19 in total)
 count(dat, site)     # Different sites (3 in total) -> Up Down Center?
 count(dat, year)     # Year of sampling
@@ -156,7 +164,24 @@ ggplot(dat, aes(x = year, y = grp, col = factor(restoration))) +
   ylab("Group") +
   xlab("Year")
 
+# Visualize with tiles
+dat %>%
+  dplyr::select(channel, year) %>%
+  distinct() %>%
+  ggplot(aes(x = year, y = channel)) +
+    geom_tile() +
+    coord_equal() +
+    theme_minimal()
+
 # Let's check the number of observations at different seasons
 table(dat$channel, dat$season)      # Season "A" only rarely sampled
 table(dat$channel, dat$year)        # Up to 16 samples per year
 table(dat$year, dat$season)         # Season "A" only sampled in year 2
+
+# Which species are present the most?
+dat %>%
+  dplyr::select(Acr_la:Viv_sp) %>%
+  colSums() %>%
+  as.tibble(rownames = "Species") %>%
+  arrange(desc(value)) %>%
+  left_join(fauna_key, by = c("Species" = "Short"))

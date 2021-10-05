@@ -76,7 +76,7 @@ JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects, spatialRandomEf
                     parameters, DLL = "LVM", random = c("LV", "dev", "spatial"))
   
   # Fit model
-  fit = nlminb(model$par, model$fn, model$gr)
+  fit = nlminb(model$par, model$fn, model$gr,control = list(eval.max = 400, iter.max = 300) )
   res = sdreport(model)
   
   # prepare output
@@ -98,7 +98,7 @@ JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects, spatialRandomEf
   }
   LF = t(LF)
   LV = matrix(res$par.random[1:(n*l)], n, l)
-  RE = res$par.random[(n*l+1):length(res$par.random)]
+  RE = res$par.random[grep("dev", names(res$par.random))]
   
   # create predictions?
   pred = X%*%W + LV%*%LF

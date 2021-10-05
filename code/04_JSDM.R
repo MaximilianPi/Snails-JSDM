@@ -20,19 +20,15 @@ Y = dat_no_na[,1:16]
 X = dat_no_na[,-(1:16)]
 
 # Fit model
-D = 1/as.matrix(dist(scale(cbind(X$northing, X$easting))))
-D[is.infinite(D)] = 1
-diag(D) = 0
+D = as.matrix(dist(scale(cbind(X$northing[!duplicated(X$channel)], X$easting[!duplicated(X$channel)])), diag=TRUE, upper=TRUE))
 
-model1 = JSDM_TMB(as.matrix(Y)[X$restoration=="pre",], X[X$restoration=="pre",], 
+
+model = JSDM_TMB(as.matrix(Y), X, 
                  formula = ~scale(depth)+scale(current), 
                  l = 2L, 
-                 randomEffects = X$channel[X$restoration=="pre"])
+                 randomEffects = X$year,
+                 spatialRandomEffects = list(X$channel, D))
 
-model2 = JSDM_TMB(as.matrix(Y)[X$restoration=="post",], X[X$restoration=="post",], 
-                  formula = ~scale(depth)+scale(current), 
-                  l = 2L, 
-                  randomEffects = X$channel[X$restoration=="post"])
 AIC(model)
 fields::image.plot( vcov(model1) )
 fields::image.plot( vcov(model2) )

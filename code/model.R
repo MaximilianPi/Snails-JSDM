@@ -5,19 +5,21 @@
 #' @param formula formula
 #' @param l number of latent variables
 #' @param randomEffects random intercept column
+#' @param spatialRandomEffects list of two objects, 1. spatial covariates and 2. positive semidefinite matrix to inform the spatial CAR structure
 #' 
 #' JSDM model based on the LVM model (Warton, 2015). 
 #' 
 #' @import TMB
 #' @import checkmate
 
-JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects) {
+JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects, spatialRandomEffects) {
   
   library(TMB)
   library(checkmate)
   
   # check inputs
   assert(checkMatrix(Y))
+  assert(checkList(spatialRandomEffects))
   assert(checkDataFrame(X), checkMatrix(X))
   qassert(l, "i1[0,)")
   
@@ -47,6 +49,7 @@ JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects) {
     }
   }
   Z = model.matrix(~-1+as.factor(randomEffects)) # random effects w/o an intercept
+  SP = model.matrix(~-1+as.factor(droplevels(spatialRandomEffects[[1]])))
   
   compile("TMB/LVM.cpp")
   dyn.load(dynlib("TMB/LVM"))
@@ -55,14 +58,22 @@ JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects) {
   s = ncol(Y)
   e = ncol(X)
   n = nrow(X)
+  print(rep(0, ncol(SP)))
   parameters = list(W=matrix(0.0, e, s) , 
                     LF = as.vector(matrix(rnorm(l*s, sd = 0.1), l, s))[-(1:sum(1:(l-1)))], 
                     LV = mvtnorm::rmvnorm(n, rep(0, l), sigma = diag(0.1, l)),
                     dev=rep(0, ncol(Z)),
-                    log_sd_dev = 0)
+                    spatial=rep(0, ncol(SP)),
+                    log_sd_dev = 0,
+                    lambda = c(0,0))
   
   # Make loss func
-  model = MakeADFun(list(x=X, y = Y, z = Z), parameters, DLL = "LVM", random = c("LV", "dev"))
+  model = MakeADFun(list(x=X, 
+                         y = Y, 
+                         z = Z,
+                         sp = SP,
+                         D = spatialRandomEffects[[2]]), 
+                    parameters, DLL = "LVM", random = c("LV", "dev", "spatial"))
   
   # Fit model
   fit = nlminb(model$par, model$fn, model$gr)
@@ -105,6 +116,8 @@ JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects) {
   out$LV = LV
   out$RE = RE
   out$RE_SD = exp(res$par.fixed[["log_sd_dev"]])
+  out$spatial = res$par.random[grep("spatial", names(res$par.random))]
+  out$lambda = res$par.fixed[grep("lambda", names(res$par.fixed))]
   out$data = list(X = X, Y = Y)
   class(out) = "JSDM_TMB"
   return(out)

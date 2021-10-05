@@ -6,7 +6,8 @@
 # Load required packages
 library(tidyverse)
 library(parzer)
-library(raster)
+library(rgdal)
+library(sp)
 
 # Clear R's brain
 rm(list = ls())
@@ -16,8 +17,8 @@ rm(list = ls())
 ################################################################################
 # Load keys
 url <- "https://raw.githubusercontent.com/pennekampster/Bayesian_thinking_UZH/main/Group_projects/SDM_Rhone_snails/data/"
-fauna_key <- read_csv2(file.path(url, "gastero_fauna_key.csv"))
-envir_key <- read_csv2(file.path(url, "gastero_environment_key.csv"))
+fauna_key <- read_csv2(file.path(url, "gastero_fauna_key.csv"), col_names = F)
+envir_key <- read_csv2(file.path(url, "gastero_environment_key.csv"), col_names = F)
 
 # Make proper column names
 names(fauna_key) <- c("family", "genus", "species", "shortname")
@@ -39,7 +40,7 @@ resto$Longitude <- parse_lon(resto$Longitude)
 
 # Reproject to utm
 coordinates(resto) <- ~ Longitude + Latitude
-crs(resto) <- CRS("+init=epsg:4326")
+proj4string(resto) <- CRS("+init=epsg:4326")
 resto <- spTransform(resto, CRS("+proj=utm +zone=31 ellps=WGS84"))
 resto <- as.data.frame(resto)
 resto <- rename(resto, Northing = Latitude, Easting = Longitude)
@@ -61,8 +62,7 @@ dat$year <- dat$year + 2000
 dat$site <- gsub("AV", "DO", dat$site)
 dat$site <- gsub("AM", "UP", dat$site)
 
-# Remove double downlstream sites (why though?)
-table(dat$site)
+# Remove some sites
 dat <- subset(dat, !grepl("N", dat$site))
 
 # Add information on restoration make column names lower_case
@@ -99,11 +99,38 @@ dat$number <- NULL
 dat$restoration_year <- NULL
 dat$restoration_type <- NULL
 
-# There are multiple samples per year and season. Let's keep only one
-dat <- subset(dat, q == 1)
-dat <- subset(dat, season == "Summer")
-dat <- subset(dat, site == "UP")
-dat <- arrange(dat, channel, year, site)
+# Make unique channel names for upstream, downstream etc.
+dat$channel <- paste0(dat$channel, "_", dat$site)
+dat$site <- NULL
+
+# Scale land cover covariates to values between 0 and 1
+dat <- dat %>%
+  mutate(across(subs_lime:veg_sub_1, function(x) {
+    (x - min(x, na.rm = T)) / (max(x, na.rm = T) - min(x, na.rm = T))
+  }))
+
+# Aggregate data across "q" samples
+dat <- dat %>%
+  group_by(channel, year, season, restoration, northing, easting) %>%
+  nest() %>%
+  mutate(data = map(data, function(x) {
+    x %>%
+      colMeans() %>%
+      t() %>%
+      as.data.frame() %>%
+      mutate(across(Acr_la:Viv_sp, function(y) {
+        ifelse(y > 0, 1, 0)
+      })) %>%
+      dplyr::select(-q)
+  })) %>%
+  unnest(data) %>%
+  ungroup()
+
+# Remove autumn samples
+dat <- subset(dat, season != "Autumn")
+
+# Arrange data
+dat <- arrange(dat, channel, year) %>% select(Acr_la:Viv_sp, everything())
 
 # Find species that are present before and after the restoration
 keep <- dat %>%
@@ -116,10 +143,7 @@ keep <- dat %>%
   pull(species)
 
 # Subset to those species
-dat <- dat %>% dplyr::select(all_of(keep), depth:restoration)
-
-# Make counts binary
-dat <- mutate(dat, across(Anc_fl:Val_pi, function(x) {ifelse(x > 0, 1, 0)}))
+dat <- dat %>% dplyr::select(all_of(keep), channel:veg_sub_1)
 
 # Store data to file
 save(dat, file = "SnailData.Rdata")

@@ -64,7 +64,8 @@ Type objective_function<Type>::operator() ()
   // Species-Env response / Ridge-regression 
   for(int i = 0; i < s; i++) 
   {
-    nll -= sum( dnorm( vector<Type>(W.col(i)), Type(0), Type(2), true) );
+    nll -= sum( dnorm( vector<Type>(W.col(i)), Type(0), Type(0.5), true) );
+
   }
   
   // Random intercepts (time)

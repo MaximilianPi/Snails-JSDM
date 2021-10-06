@@ -118,7 +118,9 @@ JSDM_TMB = function(Y, X, formula = NULL, l = 2L, randomEffects, spatialRandomEf
   out$RE_SD = exp(res$par.fixed[["log_sd_dev"]])
   out$spatial = res$par.random[grep("spatial", names(res$par.random))]
   out$lambda = res$par.fixed[grep("lambda", names(res$par.fixed))]
-  out$data = list(X = X, Y = Y)
+  out$data = list(X = X, Y = Y, 
+                  randomEffects = randomEffects, 
+                  spatialRandomEffects = spatialRandomEffects)
   class(out) = "JSDM_TMB"
   return(out)
 }
